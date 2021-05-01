@@ -41,10 +41,6 @@ if (Reagordi::$app->config->get('site_online')) {
             Reagordi::$app->context->view->setTemplateDir(APP_DIR . '/templates/' . Reagordi::$app->config->get('theme', 'admin') . '/');
         }
 
-        $collector->get('', function () {
-            return DB_PREF;
-        });
-
         if (is_dir(VENDOR_DIR . '/reagordi/cms/admin/')) {
             $it = new RecursiveDirectoryIterator(VENDOR_DIR . '/reagordi/cms/admin/');
             foreach (new RecursiveIteratorIterator($it) as $endpoint) {
@@ -64,6 +60,15 @@ if (Reagordi::$app->config->get('site_online')) {
                 }
             }
         }
+    });
+
+    $collector->any(Reagordi::$app->options->get('url', 'auth_path'), function () {
+        Reagordi::$app->context->setTitle(Reagordi::$app->config->get('site_name') . t(' - Login to the site'));
+        Reagordi::$app->context->setDescription(Reagordi::$app->config->get('site_name') . t(' - Login to the site'));
+
+        Reagordi::$app->context->view->layout = 'auth';
+
+        return Reagordi::$app->context->view->fech();
     });
 
     if (strpos(Reagordi::$app->context->server->getRequestUri(), '/' . Reagordi::$app->options->get('url', 'admin_path')) === false) {

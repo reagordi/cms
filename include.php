@@ -6,7 +6,32 @@
  * @author Sergej Rufov <support@freeun.ru>
  */
 
-if (Reagordi::$app->config->get('site_online')) {
+/**
+ * Разрешает мультисайтовость
+ *
+ * @var bool
+ */
+defined('RG_ALLOW_MULTISITE') or define('RG__ALLOW_MULTISITE', false);
+
+\Reagordi\Framework\Loader::registerAutoLoadClasses(
+    'reagordi:framework',
+    array(
+        'Reagordi\\CMS\\Models\\Users' => __DIR__ . '/src/models/Users.php',
+    )
+);
+
+if (RG_ALLOW_MULTISITE === false) define( 'DB_PREF', DB_GLOBAL_PREF . '1_' );
+else define( 'DB_PREF', DB_GLOBAL_PREF . Reagordi::$app->config->get( 'id' ) );
+
+$path = str_replace( ROOT_DIR . '/', '', APP_DIR );
+define( 'TEMPLATE_URL', str_replace(ROOT_DIR, '', APP_DIR) . '/templates/' );
+
+Reagordi::$app->context->view->setTemplateDir(__DIR__ . '/templates');
+
+if (is_file(APP_DIR . '/php_interface/init/' . Reagordi::$app->context->server->getHttpHost() . '.php'))
+    require_once APP_DIR . '/php_interface/init/' . Reagordi::$app->context->server->getHttpHost() . '.php';
+
+// if (Reagordi::$app->config->get('site_online'))
 
     $collector->group(array('prefix' => Reagordi::$app->options->get('url', 'api_path')), function (\Phroute\Phroute\RouteCollector $collector) {
         if (strpos(Reagordi::$app->context->server->getRequestUri(), '/' . Reagordi::$app->options->get('url', 'api_path')) !== false) {
@@ -62,11 +87,51 @@ if (Reagordi::$app->config->get('site_online')) {
         }
     });
 
-    $collector->any(Reagordi::$app->options->get('url', 'auth_path'), function () {
-        Reagordi::$app->context->setTitle(Reagordi::$app->config->get('site_name') . t(' - Login to the site'));
-        Reagordi::$app->context->setDescription(Reagordi::$app->config->get('site_name') . t(' - Login to the site'));
+    $collector->any(Reagordi::$app->options->get('components', 'user', 'loginUrl'), function () {
+        Reagordi::$app->context->setTitle(Reagordi::$app->config->get('site_name') . ' - ' . t('Login to the site'));
+        Reagordi::$app->context->setDescription(Reagordi::$app->config->get('site_name') . ' - ' . t('Login to the site'));
+
+        Reagordi::$app->context->view->setTemplateDir(__DIR__ . '/template');
 
         Reagordi::$app->context->view->layout = 'auth';
+
+        $error = false;
+        $url = HOME_URL . '/' . Reagordi::$app->options->get('components', 'user', 'loginUrl');
+
+        if (Reagordi::$app->context->request->get('act'))
+            $url = add_query_arg('act', urlencode(Reagordi::$app->context->request->get('act')), $url);
+        else
+            $url = add_query_arg('act', 'login', $url);
+
+        if (Reagordi::$app->context->request->get('redirect_to'))
+            $url = add_query_arg('redirect_to', urlencode(Reagordi::$app->context->request->get('redirect_to')), $url);
+
+        $request = Reagordi::$app->context->request;
+
+        switch ($request->getPost('act')) {
+            case 'login':
+                if ($request->getPost('login') && $request->getPost('password')) {
+                    if (mb_strlen($request->getPost('login')) <= 4) $error = true;
+
+                    if (mb_strlen($request->getPost('password')) <= 7) $error = true;
+
+                    if (!$error) {
+                        Reagordi::$app->applicaiton->dbInit();
+                        $user = Reagordi\CMS\Models\Users::isUserAuth($request->getPost('login'), $request->getPost('password'));
+                        echo '<pre>';
+                        print_r($user);
+                        exit;
+                    }
+                }
+                break;
+            case 'restore':
+                break;
+            case 'reg':
+                break;
+        }
+
+        Reagordi::$app->context->view->assign('error', $error);
+        Reagordi::$app->context->view->assign('url', $url);
 
         return Reagordi::$app->context->view->fech();
     });
@@ -87,4 +152,3 @@ if (Reagordi::$app->config->get('site_online')) {
             include_once $endpoint;
         }
     }
-}
